@@ -10,6 +10,19 @@ use std::io;
 use std::io::prelude::*;
 use std::iter;
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum Status {
+    Tinue,
+    NotTinue,
+    Unknown,
+}
+
+impl std::default::Default for Status {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Options {}
 
@@ -86,6 +99,12 @@ fn flow<'a, LI, TI>(
     }
 }
 
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
+struct DepthKey {
+    end_time: usize,
+    depth: usize,
+}
+
 pub fn handle_file<R: BufRead, W: Write>(
     _opt: Options,
     mut reader: R,
@@ -110,8 +129,9 @@ pub fn handle_file<R: BufRead, W: Write>(
     let mut ignored = 0;
     let mut last = String::new();
     let mut tmp = Default::default();
-    let mut frames = Default::default();
+    let mut frames: Vec<TimedFrame> = Default::default();
     let mut line = String::new();
+    let mut solved = HashMap::new();
     loop {
         line.clear();
 
@@ -123,14 +143,23 @@ pub fn handle_file<R: BufRead, W: Write>(
         if line.is_empty() {
             continue;
         }
+        let mut status = Status::default();
 
         let nsamples = if let Some(samplesi) = line.rfind(' ') {
             let mut samples = &line[(samplesi + 1)..];
             // strip fractional part (if any);
             // foobar 1.klwdjlakdj
             if let Some(doti) = samples.find('.') {
+                let end = samples.get(doti..).map(|x| x.as_bytes());
                 samples = &samples[..doti];
+                eprintln!("{:?}", end);
+                match end {
+                    Some(&[b'.', b't']) => status = Status::Tinue,
+                    Some(&[b'.', b'n']) => status = Status::NotTinue,
+                    _ => {}
+                }
             }
+            // solved.insert(todo!(), status);
             match samples.parse::<usize>() {
                 Ok(nsamples) => {
                     // remove nsamples part we just parsed from line
@@ -153,9 +182,11 @@ pub fn handle_file<R: BufRead, W: Write>(
             continue;
         }
         let stack = line;
+        let depth = stack.chars().filter(|x| *x == ';').count() + 1; // Todo better method?
 
         // inject empty first-level stack frame to capture "all"
         let this = iter::once("").chain(stack.split(';'));
+        // let depth = this.count();
         if last.is_empty() {
             // need to special-case this, because otherwise iter("") + "".split(';') == ["", ""]
             //eprintln!("flow(_, {}, {})", stack, time);
@@ -173,8 +204,16 @@ pub fn handle_file<R: BufRead, W: Write>(
 
         last = stack.to_string();
         time += nsamples;
+        solved.insert(
+            DepthKey {
+                depth,
+                end_time: time,
+            },
+            (status, stack.to_string()),
+        );
     }
     if !last.is_empty() {
+        // Todo figure out this status?
         //eprintln!("flow({}, _, {})", last, time);
         flow(
             &mut tmp,
@@ -424,7 +463,20 @@ var searchcolor = 'rgb(230,0,230)';",
         svg.write_event(Event::Text(BytesText::from_plain_str(&*info)))?;
         svg.write_event(Event::End(BytesEnd::borrowed(b"title")))?;
 
-        let color = "rgb(242,10,32)";
+        // let color = "rgb(242,10,32)";
+        dbg!(&frame);
+        let status = solved
+            .get(&DepthKey {
+                depth: frame.location.depth,
+                end_time: frame.end_time,
+            })
+            .map(|x| x.0)
+            .unwrap_or_default();
+        let color = match status {
+            Status::NotTinue => "rgb(242,10,32)",
+            Status::Tinue => "rgb(124,252,0)",
+            Status::Unknown => "rgb(255,255,255)",
+        };
         svg.write_event(Event::Empty(
             BytesStart::borrowed_name(b"rect").with_attributes(vec![
                 ("x", &*format!("{}", x1)),
