@@ -102,7 +102,6 @@ fn flow<'a, LI, TI>(
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 struct DepthKey {
     end_time: usize,
-    depth: usize,
 }
 
 pub fn handle_file<R: BufRead, W: Write>(
@@ -132,6 +131,7 @@ pub fn handle_file<R: BufRead, W: Write>(
     let mut frames: Vec<TimedFrame> = Default::default();
     let mut line = String::new();
     let mut solved = HashMap::new();
+    let mut count = 0;
     loop {
         line.clear();
 
@@ -143,6 +143,7 @@ pub fn handle_file<R: BufRead, W: Write>(
         if line.is_empty() {
             continue;
         }
+        count += 1;
         let mut status = Status::default();
 
         let nsamples = if let Some(samplesi) = line.rfind(' ') {
@@ -152,7 +153,6 @@ pub fn handle_file<R: BufRead, W: Write>(
             if let Some(doti) = samples.find('.') {
                 let end = samples.get(doti..).map(|x| x.as_bytes());
                 samples = &samples[..doti];
-                eprintln!("{:?}", end);
                 match end {
                     Some(&[b'.', b't']) => status = Status::Tinue,
                     Some(&[b'.', b'n']) => status = Status::NotTinue,
@@ -182,7 +182,6 @@ pub fn handle_file<R: BufRead, W: Write>(
             continue;
         }
         let stack = line;
-        let depth = stack.chars().filter(|x| *x == ';').count() + 1; // Todo better method?
 
         // inject empty first-level stack frame to capture "all"
         let this = iter::once("").chain(stack.split(';'));
@@ -203,14 +202,11 @@ pub fn handle_file<R: BufRead, W: Write>(
         }
 
         last = stack.to_string();
+        solved.insert(DepthKey { end_time: time }, (status, stack.to_string()));
+        if stack == "2f5-;c5-" {
+            dbg!(time);
+        }
         time += nsamples;
-        solved.insert(
-            DepthKey {
-                depth,
-                end_time: time,
-            },
-            (status, stack.to_string()),
-        );
     }
     if !last.is_empty() {
         // Todo figure out this status?
@@ -252,6 +248,8 @@ pub fn handle_file<R: BufRead, W: Write>(
         Ok(())
     };
 
+    dbg!(count);
+    dbg!(solved.len());
     if time == 0 {
         eprintln!("ERROR: No stack counts found");
         // emit an error message SVG, for tools automating flamegraph use
@@ -359,7 +357,7 @@ var searchcolor = 'rgb(230,0,230)';",
             size: fontsize + 5,
             x: (imagewidth / 2) as f64,
             y: (fontsize * 2) as f64,
-            text: "Flame Graph",
+            text: "Tinue",
             location: Some("middle"),
             extra: None,
         },
@@ -435,6 +433,9 @@ var searchcolor = 'rgb(230,0,230)';",
         let y2 = imageheight - ypad2 - frame.location.depth * frameheight;
 
         let samples = frame.end_time - frame.start_time;
+        if samples == 9317 {
+            dbg!(&frame);
+        }
         let samples_txt = samples.thousands_sep();
 
         let info = if frame.location.function.is_empty() && frame.location.depth == 0 {
@@ -464,14 +465,16 @@ var searchcolor = 'rgb(230,0,230)';",
         svg.write_event(Event::End(BytesEnd::borrowed(b"title")))?;
 
         // let color = "rgb(242,10,32)";
-        dbg!(&frame);
+        // dbg!(&frame);
         let status = solved
             .get(&DepthKey {
-                depth: frame.location.depth,
-                end_time: frame.end_time,
+                end_time: frame.start_time,
             })
             .map(|x| x.0)
             .unwrap_or_default();
+        if samples == 9317 {
+            dbg!(status);
+        }
         let color = match status {
             Status::NotTinue => "rgb(242,10,32)",
             Status::Tinue => "rgb(124,252,0)",
