@@ -282,6 +282,7 @@ pub fn handle_file<R: BufRead, W: Write>(
 
     // prune blocks that are too narrow
     let mut depthmax = 0;
+    frames.retain(|frame| frame.end_time - frame.start_time > 1);
     frames.retain(|frame| {
         if ((frame.end_time - frame.start_time) as f64) < minwidth_time {
             false
