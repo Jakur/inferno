@@ -23,9 +23,6 @@ impl std::default::Default for Status {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Options {}
-
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Frame {
     function: String,
@@ -104,11 +101,7 @@ struct DepthKey {
     end_time: usize,
 }
 
-pub fn handle_file<R: BufRead, W: Write>(
-    _opt: Options,
-    mut reader: R,
-    writer: W,
-) -> quick_xml::Result<()> {
+pub fn handle_file<R: BufRead, W: Write>(mut reader: R, writer: W) -> quick_xml::Result<()> {
     let imagewidth = 1200; // max width, pixels
     let frameheight = 16; // max height is dynamic
     let fontsize = 12; // base text size

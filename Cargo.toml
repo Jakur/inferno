@@ -21,7 +21,7 @@ pretty_toa = "1.0.0"
 
 [dependencies.quick-xml]
 default-features = false
-version = "0.13"
+version = "0.22"
 
 [lib]
 name = "inferno"
