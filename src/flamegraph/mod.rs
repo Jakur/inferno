@@ -245,7 +245,8 @@ pub fn handle_file<R: BufRead, W: Write>(
              See https://github.com/brendangregg/FlameGraph for latest version, \
              and http://www.brendangregg.com/flamegraphs.html for examples.",
         )))?;
-        Ok(())
+        let res: quick_xml::Result<()> = Ok(());
+        res
     };
 
     dbg!(count);
